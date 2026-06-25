@@ -1,7 +1,6 @@
 import { lazy, Suspense } from 'react';
 import React from 'react';
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom';
-import { cleanupUrl, handleOAuthCallback } from '@/external/deriv-core';
 import ChunkLoader from '@/components/loader/chunk-loader';
 import LocalStorageSyncWrapper from '@/components/localStorage-sync-wrapper';
 import RoutePromptDialog from '@/components/route-prompt-dialog';
@@ -67,7 +66,7 @@ const router = createBrowserRouter(
  * Main App component
  *
  * Responsibilities:
- * 1. OAuth callback handling (via vendored deriv-core handleOAuthCallback)
+ * 1. Local Monk data startup with no external broker/API callback handling
  * 2. Account switching from URL (via useAccountSwitching hook)
  * 3. Router provider setup
  */
@@ -78,39 +77,11 @@ function App() {
     React.useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         if (!urlParams.has('code')) return;
-
-        const handleCallback = async () => {
-            try {
-                const authInfo = await handleOAuthCallback(window.location.href, {
-                    clientId: process.env.NEXT_PUBLIC_DERIV_APP_ID || '',
-                    redirectUri: window.location.origin,
-                    scopes: 'trade',
-                });
-
-                const { DerivWSAccountsService } = await import('@/services/derivws-accounts.service');
-                const accounts = await DerivWSAccountsService.fetchAccountsList(authInfo.access_token);
-
-                if (accounts && accounts.length > 0) {
-                    DerivWSAccountsService.storeAccounts(accounts);
-                    const firstAccount = accounts[0];
-                    localStorage.setItem('active_loginid', firstAccount.account_id);
-                    const isDemo =
-                        firstAccount.account_id.startsWith('VRT') || firstAccount.account_id.startsWith('VRTC');
-                    localStorage.setItem('account_type', isDemo ? 'demo' : 'real');
-
-                    const { api_base } = await import('@/external/bot-skeleton');
-                    await api_base.init(true);
-                } else {
-                    console.error('No accounts returned after authentication');
-                }
-            } catch (error) {
-                console.error('OAuth callback error:', error);
-            } finally {
-                cleanupUrl(window.location.origin);
-            }
-        };
-
-        handleCallback();
+        urlParams.delete('code');
+        urlParams.delete('state');
+        urlParams.delete('scope');
+        const search = urlParams.toString();
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${search ? `?${search}` : ''}`);
     }, []);
 
     return <RouterProvider router={router} />;

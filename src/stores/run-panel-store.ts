@@ -5,7 +5,7 @@ import { notification_message } from '@/components/bot-notification/bot-notifica
 import { generateOAuthURL, isSafari, mobileOSDetect, standalone_routes } from '@/components/shared';
 import { contract_stages, TContractStage } from '@/constants/contract-stage';
 import { run_panel } from '@/constants/run-panel';
-import { ErrorTypes, MessageTypes, observer, unrecoverable_errors } from '@/external/bot-skeleton';
+import { api_base, ErrorTypes, MessageTypes, observer, unrecoverable_errors } from '@/external/bot-skeleton';
 import { getSelectedTradeType } from '@/external/bot-skeleton/scratch/utils';
 import { handleBackendError, isBackendError } from '@/utils/error-handler';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
@@ -374,8 +374,8 @@ export default class RunPanelStore {
     showLoginDialog = () => {
         // Only allow closing through the buttons
         this.onOkButtonClick = () => {
-            generateOAuthURL('registration').then(url => {
-                if (url) window.location.replace(url);
+            generateOAuthURL('registration').then(async () => {
+                await api_base.init(true);
             });
             this.is_dialog_open = false;
         };

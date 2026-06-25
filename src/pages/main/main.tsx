@@ -358,12 +358,8 @@ const AppWrapper = observer(() => {
 
     // [AI]
     const handleLoginGeneration = async () => {
-        const oauthUrl = await generateOAuthURL();
-        if (oauthUrl) {
-            window.location.replace(oauthUrl);
-        } else {
-            console.error('Failed to generate OAuth URL');
-        }
+        await generateOAuthURL();
+        await api_base.init(true);
     };
     // [/AI]
     return (

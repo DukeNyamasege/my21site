@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { observer } from 'mobx-react-lite';
 import { generateOAuthURL } from '@/components/shared';
 import Button from '@/components/shared_ui/button';
+import { api_base } from '@/external/bot-skeleton';
 import useActiveAccount from '@/hooks/api/account/useActiveAccount';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useLogout } from '@/hooks/useLogout';
@@ -86,15 +87,10 @@ const AppHeader = observer(() => {
     const handleSignup = useCallback(async () => {
         try {
             setIsAuthorizing(true);
-            const oauthUrl = await generateOAuthURL('registration');
-            if (oauthUrl) {
-                window.location.replace(oauthUrl);
-            } else {
-                console.error('Failed to generate OAuth URL for signup');
-                setIsAuthorizing(false);
-            }
+            await generateOAuthURL('registration');
+            await api_base.init(true);
         } catch (error) {
-            console.error('Signup redirection failed:', error);
+            console.error('Local signup failed:', error);
             setIsAuthorizing(false);
         }
     }, [setIsAuthorizing]);
@@ -104,18 +100,10 @@ const AppHeader = observer(() => {
             // Set authorizing state immediately when login is clicked
             setIsAuthorizing(true);
 
-            // Generate OAuth URL with CSRF token and PKCE parameters
-            const oauthUrl = await generateOAuthURL();
-
-            if (oauthUrl) {
-                // Redirect to OAuth URL
-                window.location.replace(oauthUrl);
-            } else {
-                console.error('Failed to generate OAuth URL');
-                setIsAuthorizing(false);
-            }
+            await generateOAuthURL();
+            await api_base.init(true);
         } catch (error) {
-            console.error('Login redirection failed:', error);
+            console.error('Local login failed:', error);
             // Reset authorizing state if redirection fails
             setIsAuthorizing(false);
         }
