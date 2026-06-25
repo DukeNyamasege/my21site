@@ -463,6 +463,7 @@ export class MonkDataAPI {
         const account = getActiveAccount();
         const prediction = parameters.selected_tick ?? parameters.barrier ?? 0;
         const payout = this.getPayoutForContract(contract_type, buy_price);
+        const profit = Number((payout - buy_price).toFixed(2));
         const entry_tick = getPrice(symbol);
         const exit_tick = this.getWinningExitTick(contract_type, entry_tick, prediction);
         const contract = {
@@ -471,14 +472,24 @@ export class MonkDataAPI {
             contract_id,
             contract_type,
             currency: account.currency,
+            date_start: now(),
+            display_name: ACTIVE_SYMBOLS.find(active_symbol => active_symbol.symbol === symbol)?.display_name || symbol,
             entry_tick,
+            entry_spot: entry_tick,
             entry_tick_time: now(),
+            id: contract_id,
             is_expired: 0,
             is_sold: 0,
             is_valid_to_sell: 1,
+            longcode: `Monk data ${contract_type} contract`,
+            payout,
+            profit: 0,
             sell_price: 0,
+            shortcode: `${contract_type}_${symbol}`,
             status: 'open',
             transaction_ids: { buy: transaction_id },
+            underlying: symbol,
+            underlying_symbol: symbol,
         };
         this.openContracts.set(contract_id, contract);
 
@@ -514,11 +525,15 @@ export class MonkDataAPI {
             const sellTransactionId = this.nextTransactionId++;
             const soldContract = {
                 ...latestContract,
+                bid_price: payout,
+                date_expiry: now(),
                 exit_tick,
+                exit_spot: exit_tick,
                 exit_tick_time: now(),
                 is_expired: 1,
                 is_sold: 1,
                 is_valid_to_sell: 0,
+                profit,
                 sell_price: payout,
                 status: 'won',
                 transaction_ids: { ...latestContract.transaction_ids, sell: sellTransactionId },
@@ -526,7 +541,7 @@ export class MonkDataAPI {
             this.openContracts.set(contract_id, soldContract);
             this.publish({
                 msg_type: 'transaction',
-                transaction: { action: 'sell', contract_id, transaction_id: sellTransactionId },
+                transaction: { action: 'sell', amount: payout, contract_id, transaction_id: sellTransactionId },
             });
             this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: soldContract });
         }, 900);
@@ -537,14 +552,20 @@ export class MonkDataAPI {
     handleSell(request) {
         const contract = this.openContracts.get(Number(request.sell));
         const sold_for = Number((contract?.sell_price || this.getPayoutForContract(contract?.contract_type, contract?.buy_price || 1)).toFixed(2));
+        const profit = Number((sold_for - Number(contract?.buy_price || 0)).toFixed(2));
         const transaction_id = this.nextTransactionId++;
         const soldContract = {
             ...(contract || {}),
+            bid_price: sold_for,
+            date_expiry: contract?.date_expiry ?? now(),
             exit_tick: contract?.exit_tick ?? getPrice('1HZ100V'),
+            exit_spot: contract?.exit_spot ?? contract?.exit_tick ?? getPrice('1HZ100V'),
             exit_tick_time: contract?.exit_tick_time ?? now(),
             is_expired: 1,
             is_sold: 1,
             is_valid_to_sell: 0,
+            payout: sold_for,
+            profit,
             sell_price: sold_for,
             status: 'won',
             transaction_ids: { ...(contract?.transaction_ids || {}), sell: transaction_id },
@@ -561,7 +582,7 @@ export class MonkDataAPI {
             this.publish(response);
             this.publish({
                 msg_type: 'transaction',
-                transaction: { action: 'sell', contract_id: Number(request.sell), transaction_id },
+                transaction: { action: 'sell', amount: sold_for, contract_id: Number(request.sell), transaction_id },
             });
             this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: soldContract });
         }, 0);
@@ -577,6 +598,8 @@ export class MonkDataAPI {
             is_expired: 1,
             is_sold: 1,
             is_valid_to_sell: 0,
+            payout: 1.1,
+            profit: 0.1,
             sell_price: 1.1,
             status: 'won',
             transaction_ids: {},

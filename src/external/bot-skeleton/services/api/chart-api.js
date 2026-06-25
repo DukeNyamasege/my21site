@@ -3,6 +3,7 @@ import { generateDerivApiInstance } from './appId';
 class ChartAPI {
     api;
     chart_active_symbols = null; // Separate variable for chart-specific symbols
+    socket_close_listener = () => this.onsocketclose();
 
     onsocketclose() {
         this.reconnectIfNotConnected();
@@ -11,11 +12,11 @@ class ChartAPI {
     init = async (force_create_connection = false) => {
         if (!this.api || force_create_connection) {
             if (this.api?.connection) {
+                this.api.connection.removeEventListener('close', this.socket_close_listener);
                 this.api.disconnect();
-                this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
             }
             this.api = await generateDerivApiInstance();
-            this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
+            this.api?.connection.addEventListener('close', this.socket_close_listener);
 
             // Intercept the send method to filter active_symbols responses for chart
             // this.interceptApiCalls();

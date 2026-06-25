@@ -65,6 +65,9 @@ class APIBase {
     active_symbols_promise: Promise<any[] | undefined> | null = null;
     common_store: CommonStore | undefined;
     reconnection_attempts: number = 0;
+    has_window_event_listeners = false;
+    socket_open_listener = () => this.onsocketopen();
+    socket_close_listener = () => this.onsocketclose();
 
     // Constants for timeouts - extracted magic numbers for better maintainability
     private readonly ACTIVE_SYMBOLS_TIMEOUT_MS = 10000; // 10 seconds
@@ -148,6 +151,10 @@ class APIBase {
 
     onsocketclose() {
         setConnectionStatus(CONNECTION_STATUS.CLOSED);
+        if (this.is_stopping) {
+            this.is_stopping = false;
+            return;
+        }
         this.reconnectIfNotConnected();
     }
 
@@ -167,15 +174,17 @@ class APIBase {
             if (this.api?.connection) {
                 ApiHelpers.disposeInstance();
                 setConnectionStatus(CONNECTION_STATUS.CLOSED);
+                this.is_stopping = true;
+                this.api.connection.removeEventListener('open', this.socket_open_listener);
+                this.api.connection.removeEventListener('close', this.socket_close_listener);
                 this.api.disconnect();
-                this.api.connection.removeEventListener('open', this.onsocketopen.bind(this));
-                this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
             }
 
             this.api = await generateDerivApiInstance();
+            this.is_stopping = false;
 
-            this.api?.connection.addEventListener('open', this.onsocketopen.bind(this));
-            this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
+            this.api?.connection.addEventListener('open', this.socket_open_listener);
+            this.api?.connection.addEventListener('close', this.socket_close_listener);
 
             // Store the current account ID used for this WebSocket connection
             // This will be used to check if we need to regenerate the connection when the tab becomes active
@@ -212,13 +221,19 @@ class APIBase {
 
     terminate() {
         // eslint-disable-next-line no-console
-        if (this.api) this.api.disconnect();
+        if (this.api) {
+            this.is_stopping = true;
+            this.api.connection?.removeEventListener('open', this.socket_open_listener);
+            this.api.connection?.removeEventListener('close', this.socket_close_listener);
+            this.api.disconnect();
+        }
     }
 
     initEventListeners() {
-        if (window) {
+        if (window && !this.has_window_event_listeners) {
             window.addEventListener('online', this.reconnectIfNotConnected);
             window.addEventListener('focus', this.reconnectIfNotConnected);
+            this.has_window_event_listeners = true;
         }
     }
 

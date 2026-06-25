@@ -45,7 +45,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     }, [is_bot_running, isSingleAccount]);
 
     const handleAccountSelect = useCallback(
-        async (loginid: string) => {
+        (loginid: string) => {
             switchMonkAccount(loginid);
             client?.setLoginId(loginid);
             client?.setAccountList(accountList);
@@ -54,8 +54,14 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                 client?.setBalance(String(selectedAccount.balance ?? 0));
                 client?.setCurrency(selectedAccount.currency);
                 client?.setIsLoggedIn(true);
+                api_base.account_id = loginid;
+                api_base.account_info = {
+                    balance: selectedAccount.balance,
+                    currency: selectedAccount.currency,
+                    loginid,
+                };
+                api_base.token = loginid;
             }
-            await api_base.init(true);
             setIsOpen(false);
         },
         [accountList, client]
