@@ -52,13 +52,13 @@ const getStoredAccountList = () =>
 
 const ACTIVE_SYMBOLS = [
     {
-        symbol: 'MONK100',
-        underlying_symbol: 'MONK100',
-        display_name: 'Monk Index 100',
+        symbol: '1HZ100V',
+        underlying_symbol: '1HZ100V',
+        display_name: 'Volatility 100 (1s) Index',
         market: 'synthetic_index',
-        market_display_name: 'Monk Data',
+        market_display_name: 'Derived',
         submarket: 'random_index',
-        submarket_display_name: 'Monk Indices',
+        submarket_display_name: 'Continuous Indices',
         exchange_is_open: 1,
         is_trading_suspended: 0,
         pip_size: 0.01,
@@ -67,13 +67,73 @@ const ACTIVE_SYMBOLS = [
         underlying_symbol_type: 'synthetic_index',
     },
     {
-        symbol: 'MONK50',
-        underlying_symbol: 'MONK50',
-        display_name: 'Monk Index 50',
+        symbol: '1HZ10V',
+        underlying_symbol: '1HZ10V',
+        display_name: 'Volatility 10 (1s) Index',
         market: 'synthetic_index',
-        market_display_name: 'Monk Data',
+        market_display_name: 'Derived',
         submarket: 'random_index',
-        submarket_display_name: 'Monk Indices',
+        submarket_display_name: 'Continuous Indices',
+        exchange_is_open: 1,
+        is_trading_suspended: 0,
+        pip_size: 0.01,
+        pip: 0.01,
+        symbol_type: 'synthetic_index',
+        underlying_symbol_type: 'synthetic_index',
+    },
+    {
+        symbol: '1HZ25V',
+        underlying_symbol: '1HZ25V',
+        display_name: 'Volatility 25 (1s) Index',
+        market: 'synthetic_index',
+        market_display_name: 'Derived',
+        submarket: 'random_index',
+        submarket_display_name: 'Continuous Indices',
+        exchange_is_open: 1,
+        is_trading_suspended: 0,
+        pip_size: 0.01,
+        pip: 0.01,
+        symbol_type: 'synthetic_index',
+        underlying_symbol_type: 'synthetic_index',
+    },
+    {
+        symbol: '1HZ50V',
+        underlying_symbol: '1HZ50V',
+        display_name: 'Volatility 50 (1s) Index',
+        market: 'synthetic_index',
+        market_display_name: 'Derived',
+        submarket: 'random_index',
+        submarket_display_name: 'Continuous Indices',
+        exchange_is_open: 1,
+        is_trading_suspended: 0,
+        pip_size: 0.01,
+        pip: 0.01,
+        symbol_type: 'synthetic_index',
+        underlying_symbol_type: 'synthetic_index',
+    },
+    {
+        symbol: '1HZ75V',
+        underlying_symbol: '1HZ75V',
+        display_name: 'Volatility 75 (1s) Index',
+        market: 'synthetic_index',
+        market_display_name: 'Derived',
+        submarket: 'random_index',
+        submarket_display_name: 'Continuous Indices',
+        exchange_is_open: 1,
+        is_trading_suspended: 0,
+        pip_size: 0.01,
+        pip: 0.01,
+        symbol_type: 'synthetic_index',
+        underlying_symbol_type: 'synthetic_index',
+    },
+    {
+        symbol: 'R_50',
+        underlying_symbol: 'R_50',
+        display_name: 'Volatility 50 Index',
+        market: 'synthetic_index',
+        market_display_name: 'Derived',
+        submarket: 'random_index',
+        submarket_display_name: 'Continuous Indices',
         exchange_is_open: 1,
         is_trading_suspended: 0,
         pip_size: 0.01,
@@ -153,7 +213,7 @@ const makeSubscription = unsubscribe => ({ unsubscribe });
 const now = () => Math.floor(Date.now() / 1000);
 
 const getSymbolSeed = symbol =>
-    String(symbol || 'MONK100')
+    String(symbol || '1HZ100V')
         .split('')
         .reduce((sum, char) => sum + char.charCodeAt(0), 0);
 
@@ -399,7 +459,7 @@ export class MonkDataAPI {
         const parameters = request.parameters || proposalRequest;
         const buy_price = Number(request.price || parameters.amount || storedProposal?.proposal?.ask_price || 1);
         const contract_type = parameters.contract_type || storedProposal?.proposal?.contract_type || 'CALL';
-        const symbol = parameters.underlying_symbol || 'MONK100';
+        const symbol = parameters.underlying_symbol || '1HZ100V';
         const account = getActiveAccount();
         const prediction = parameters.selected_tick ?? parameters.barrier ?? 0;
         const payout = this.getPayoutForContract(contract_type, buy_price);
@@ -480,7 +540,7 @@ export class MonkDataAPI {
         const transaction_id = this.nextTransactionId++;
         const soldContract = {
             ...(contract || {}),
-            exit_tick: contract?.exit_tick ?? getPrice('MONK100'),
+            exit_tick: contract?.exit_tick ?? getPrice('1HZ100V'),
             exit_tick_time: contract?.exit_tick_time ?? now(),
             is_expired: 1,
             is_sold: 1,
@@ -553,10 +613,10 @@ export class MonkDataAPI {
             trading_times: {
                 markets: [
                     {
-                        name: 'Monk Data',
+                        name: 'Derived',
                         submarkets: [
                             {
-                                name: 'Monk Indices',
+                                name: 'Continuous Indices',
                                 symbols: symbolItems,
                             },
                         ],
@@ -568,14 +628,15 @@ export class MonkDataAPI {
 
     getPayoutForContract(contractType, amount) {
         const stake = Number(amount || 1);
-        if (contractType === 'DIGITMATCH') return Number((stake * 9.5).toFixed(2));
-        if (contractType === 'DIGITDIFF') return Number((stake * 1.1).toFixed(2));
-        if (String(contractType || '').startsWith('DIGIT')) return Number((stake * 1.85).toFixed(2));
+        if (contractType === 'DIGITMATCH') return Number((stake * 9.09).toFixed(2));
+        if (contractType === 'DIGITDIFF') return Number((stake * 1.11).toFixed(2));
+        if (contractType === 'DIGITEVEN' || contractType === 'DIGITODD') return Number((stake * 1.9).toFixed(2));
+        if (contractType === 'DIGITOVER' || contractType === 'DIGITUNDER') return Number((stake * 1.85).toFixed(2));
         return Number((stake * 1.85).toFixed(2));
     }
 
     getWinningExitTick(contractType, entryTick, prediction) {
-        if (contractType !== 'DIGITMATCH') return getPrice('MONK100', 1);
+        if (contractType !== 'DIGITMATCH') return getPrice('1HZ100V', 1);
 
         const digit = Number.isFinite(Number(prediction)) ? Math.abs(Number(prediction)) % 10 : 0;
         const base = Math.floor(Number(entryTick || 100));

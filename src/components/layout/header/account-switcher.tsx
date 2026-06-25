@@ -6,6 +6,7 @@ import Text from '@/components/shared_ui/text';
 import { api_base } from '@/external/bot-skeleton/services/api/api-base';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
+import { switchMonkAccount } from '@/services/monk-data-api';
 import { isDemoAccount } from '@/utils/account-helpers';
 import { Localize } from '@deriv-com/translations';
 import { TAccountSwitcher } from './common/types';
@@ -44,12 +45,20 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     }, [is_bot_running, isSingleAccount]);
 
     const handleAccountSelect = useCallback(
-        (loginid: string) => {
-            localStorage.setItem('active_loginid', loginid);
-            client?.checkAndRegenerateWebSocket();
+        async (loginid: string) => {
+            switchMonkAccount(loginid);
+            client?.setLoginId(loginid);
+            client?.setAccountList(accountList);
+            const selectedAccount = accountList?.find(account => account.loginid === loginid);
+            if (selectedAccount) {
+                client?.setBalance(String(selectedAccount.balance ?? 0));
+                client?.setCurrency(selectedAccount.currency);
+                client?.setIsLoggedIn(true);
+            }
+            await api_base.init(true);
             setIsOpen(false);
         },
-        [client]
+        [accountList, client]
     );
 
     const formattedAccounts = useMemo(() => {
