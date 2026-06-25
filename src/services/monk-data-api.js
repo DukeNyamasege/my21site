@@ -6,6 +6,7 @@ import {
     setIsAuthorizing,
     CONNECTION_STATUS,
 } from '@/external/bot-skeleton/services/api/observables/connection-status-stream';
+import { observer as globalObserver } from '@/external/bot-skeleton/utils/observer';
 
 const MONK_ACCOUNTS = {
     CRMONK001: {
@@ -31,6 +32,12 @@ const DEFAULT_LOGINID = 'VRTCMONK001';
 const getActiveLoginId = () => localStorage.getItem('active_loginid') || DEFAULT_LOGINID;
 
 const getActiveAccount = () => MONK_ACCOUNTS[getActiveLoginId()] || MONK_ACCOUNTS[DEFAULT_LOGINID];
+
+const updateAccountBalance = (loginid, nextBalance) => {
+    const account = MONK_ACCOUNTS[loginid] || MONK_ACCOUNTS[DEFAULT_LOGINID];
+    account.balance = Number(Number(nextBalance).toFixed(2));
+    return account;
+};
 
 const getAccountList = () =>
     Object.values(MONK_ACCOUNTS).map(account => ({
@@ -284,6 +291,29 @@ export class MonkDataAPI {
         this.messageSubscribers.forEach(callback => callback({ data }));
     }
 
+    publishBalance(account = getActiveAccount()) {
+        const accountList = getAccountList();
+        const response = {
+            balance: { ...account },
+            echo_req: { balance: 1, subscribe: 1 },
+            msg_type: 'balance',
+        };
+        const clientStore = globalObserver.getState('client.store');
+
+        setAccountList(accountList);
+        setAuthData({
+            ...account,
+            account_list: accountList,
+        });
+        clientStore?.setAccountList?.(accountList);
+        clientStore?.setLoginId?.(account.loginid);
+        clientStore?.setBalance?.(String(account.balance));
+        clientStore?.setCurrency?.(account.currency);
+        clientStore?.setIsLoggedIn?.(true);
+        this.publish(response);
+        return response;
+    }
+
     onMessage() {
         return {
             subscribe: callback => {
@@ -461,6 +491,8 @@ export class MonkDataAPI {
         const contract_type = parameters.contract_type || storedProposal?.proposal?.contract_type || 'CALL';
         const symbol = parameters.underlying_symbol || '1HZ100V';
         const account = getActiveAccount();
+        const balance_after_buy = Number((account.balance - buy_price).toFixed(2));
+        updateAccountBalance(account.loginid, balance_after_buy);
         const prediction = parameters.selected_tick ?? parameters.barrier ?? 0;
         const payout = this.getPayoutForContract(contract_type, buy_price);
         const profit = Number((payout - buy_price).toFixed(2));
@@ -495,7 +527,7 @@ export class MonkDataAPI {
 
         const response = {
             buy: {
-                balance_after: account.balance - buy_price,
+                balance_after: balance_after_buy,
                 buy_price,
                 contract_id,
                 longcode: `Monk data ${contract_type} contract`,
@@ -513,8 +545,16 @@ export class MonkDataAPI {
             this.publish(response);
             this.publish({
                 msg_type: 'transaction',
-                transaction: { action: 'buy', amount: buy_price, contract_id, transaction_id },
+                transaction: {
+                    action: 'buy',
+                    amount: buy_price,
+                    balance: balance_after_buy,
+                    contract_id,
+                    currency: account.currency,
+                    transaction_id,
+                },
             });
+            this.publishBalance({ ...account, balance: balance_after_buy });
             this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: contract });
         }, 0);
 
@@ -523,6 +563,8 @@ export class MonkDataAPI {
             if (!latestContract || latestContract.is_sold) return;
 
             const sellTransactionId = this.nextTransactionId++;
+            const latestAccount = getActiveAccount();
+            const balance_after_sell = updateAccountBalance(latestAccount.loginid, latestAccount.balance + payout).balance;
             const soldContract = {
                 ...latestContract,
                 bid_price: payout,
@@ -541,8 +583,16 @@ export class MonkDataAPI {
             this.openContracts.set(contract_id, soldContract);
             this.publish({
                 msg_type: 'transaction',
-                transaction: { action: 'sell', amount: payout, contract_id, transaction_id: sellTransactionId },
+                transaction: {
+                    action: 'sell',
+                    amount: payout,
+                    balance: balance_after_sell,
+                    contract_id,
+                    currency: latestAccount.currency,
+                    transaction_id: sellTransactionId,
+                },
             });
+            this.publishBalance({ ...latestAccount, balance: balance_after_sell });
             this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: soldContract });
         }, 900);
 
@@ -551,8 +601,26 @@ export class MonkDataAPI {
 
     handleSell(request) {
         const contract = this.openContracts.get(Number(request.sell));
+        if (contract?.is_sold) {
+            const response = {
+                echo_req: request,
+                msg_type: 'sell',
+                sell: {
+                    sold_for: Number(contract.sell_price || 0),
+                    transaction_id: contract.transaction_ids?.sell,
+                },
+            };
+            setTimeout(() => {
+                this.publish(response);
+                this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: contract });
+            }, 0);
+            return Promise.resolve(response);
+        }
+
         const sold_for = Number((contract?.sell_price || this.getPayoutForContract(contract?.contract_type, contract?.buy_price || 1)).toFixed(2));
         const profit = Number((sold_for - Number(contract?.buy_price || 0)).toFixed(2));
+        const account = getActiveAccount();
+        const balance_after_sell = updateAccountBalance(account.loginid, account.balance + sold_for).balance;
         const transaction_id = this.nextTransactionId++;
         const soldContract = {
             ...(contract || {}),
@@ -582,8 +650,16 @@ export class MonkDataAPI {
             this.publish(response);
             this.publish({
                 msg_type: 'transaction',
-                transaction: { action: 'sell', amount: sold_for, contract_id: Number(request.sell), transaction_id },
+                transaction: {
+                    action: 'sell',
+                    amount: sold_for,
+                    balance: balance_after_sell,
+                    contract_id: Number(request.sell),
+                    currency: account.currency,
+                    transaction_id,
+                },
             });
+            this.publishBalance({ ...account, balance: balance_after_sell });
             this.publish({ msg_type: 'proposal_open_contract', proposal_open_contract: soldContract });
         }, 0);
 
